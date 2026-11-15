@@ -5,6 +5,20 @@ promise of compatibility beyond the documented interfaces.
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-11-15
+
+The sixth experimental release. Effects can feed back, and desk moves
+travel with the music: a cycle in an effect's graph may close through a
+`synth.delay/1`, so a tape echo that wears and runs away is one effect; a
+parameter takes several automations; and an `automation` written in a
+`place` follows the placement and its events. "Low Tide", a roots dub from
+the T9 trial, joins the examples. An edit now refuses what only a compile
+refused before, and an edit context can also check that the final document
+compiles (`maac patch --check-compile`). Two renderer crashes are fixed, in
+`synth.bow/1` and `synth.pluck/1`. The execution hash of a document that
+wrote one of four defaults out changes once, to the hash of the same
+document without it. The Rust version is now pinned.
+
 ### Added
 
 - Feedback inside effects
@@ -85,6 +99,9 @@ promise of compatibility beyond the documented interfaces.
   `vary.velocity must be from 0 to 1/2`, where each said only that the
   field was `outside its valid range`. The code, `E_RANGE`, and the place
   are the same.
+- The Rust version is pinned in `rust-toolchain.toml`, at 1.100.0. The
+  release binaries are built with it, and a build from source with rustup
+  uses it; before, both used the newest stable Rust of the day.
 
 ### Fixed
 
