@@ -897,7 +897,8 @@ impl CliError {
             return Self::from_plan(plan_error.clone());
         }
         let code = error.code().to_owned();
-        Self::new(code, error.to_string())
+        let message = without_leading_code(&code, &error.to_string());
+        Self::new(code, message)
     }
 
     pub fn from_edit(error: crate::editing::EditError) -> Self {
@@ -920,14 +921,30 @@ impl CliError {
             return Self::from_render(render_error.clone());
         }
         let code = error.code().to_owned();
-        let path = match &error {
-            ExportError::OutputExists { path } => Some(path.display().to_string()),
-            _ => None,
+        // `CliError` prints the code and the path itself, so the message
+        // carries neither: `ExportError`'s own text starts with the code and,
+        // for an existing output, ends with the path.
+        let (message, path) = match &error {
+            ExportError::OutputExists { path } => (
+                "destination already exists".to_owned(),
+                Some(path.display().to_string()),
+            ),
+            _ => (without_leading_code(&code, &error.to_string()), None),
         };
-        let mut result = Self::new(code, error.to_string());
+        let mut result = Self::new(code, message);
         result.path = path;
         result
     }
+}
+
+/// `text` without the error code its own `Display` starts with, whether it
+/// reads `CODE: detail` or `CODE at node: detail`. `CliError` prints the code
+/// itself, so a message that kept it would show the code twice.
+fn without_leading_code(code: &str, text: &str) -> String {
+    text.strip_prefix(code)
+        .and_then(|rest| rest.strip_prefix(": ").or_else(|| rest.strip_prefix(' ')))
+        .unwrap_or(text)
+        .to_owned()
 }
 
 impl fmt::Display for CliError {
@@ -4216,5 +4233,57 @@ mod disk_media_patch_snapshot_tests {
         );
         let edited_revision = edited_document.revision().to_owned();
         assert_eq!(result.digest.as_deref(), Some(edited_revision.as_str()));
+    }
+}
+
+#[cfg(test)]
+mod export_error_display_tests {
+    use super::*;
+
+    #[test]
+    fn an_existing_output_names_the_code_and_the_path_once() {
+        let error = CliError::from_export(ExportError::OutputExists {
+            path: "hello.wav".into(),
+        });
+        assert_eq!(
+            error.to_string(),
+            "E_OUTPUT_EXISTS: destination already exists at hello.wav"
+        );
+    }
+
+    #[test]
+    fn other_export_errors_name_the_code_once() {
+        let error = CliError::from_export(ExportError::InvalidFormat("bad".into()));
+        assert_eq!(error.to_string(), "E_FORMAT: bad");
+        let error = CliError::from_export(ExportError::Io {
+            message: "disk full".into(),
+        });
+        assert_eq!(error.to_string(), "E_IO: disk full");
+    }
+
+    #[test]
+    fn render_errors_name_the_code_once() {
+        let render = |error| CliError::from_export(ExportError::Render(error)).to_string();
+        assert_eq!(
+            render(RenderError::Nonfinite(
+                "matrix produced a nonfinite product".into()
+            )),
+            "E_NONFINITE: matrix produced a nonfinite product"
+        );
+        assert_eq!(
+            render(RenderError::RenderState("bad state".into())),
+            "E_RENDER_STATE: bad state"
+        );
+        assert_eq!(
+            render(RenderError::Callback("stopped".into())),
+            "E_RENDER_CALLBACK: stopped"
+        );
+        assert_eq!(
+            render(RenderError::VoiceLimit {
+                node: "piano".into(),
+                address: "n1".into(),
+            }),
+            "E_VOICE_LIMIT: at piano: voice capacity exceeded for n1"
+        );
     }
 }
